@@ -12,10 +12,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: ' SMART LIGHT PROJECT',
+      title: ' SMART LIGHT PROJECT AC',
       theme: ThemeData(
-        
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+        colorScheme: .fromSeed(
+          seedColor: Colors.deepPurple,
+          surface: const Color(0xFFE7ECEF),
+        ),
       ),
       home: const HomePage(),
     );

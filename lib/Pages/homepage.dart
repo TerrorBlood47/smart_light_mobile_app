@@ -5,8 +5,6 @@ import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:typed_data';
 
-import 'package:syncfusion_flutter_gauges/gauges.dart';
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -18,12 +16,12 @@ class _HomePageState extends State<HomePage> {
   late BluetoothConnection bluetoothConnection;
   late BluetoothDevice bluetoothDevice;
   bool isConnected = false;
-  double radialPWMvalue = 0.0;
+  bool isBulbOn = false;
+  int flag = 0;
 
   @override
   void initState() {
     super.initState();
-    // _requestPermissionsAndConnect();
   }
 
   /// Request necessary Bluetooth permissions
@@ -88,7 +86,9 @@ class _HomePageState extends State<HomePage> {
 
       debugPrint('Connected to ${bluetoothDevice.name}');
 
-      await _sendPWMvalue(0);
+      // await _sendPWMvalue(0);
+      await turnBulbOff();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Connected to ${bluetoothDevice.name}')),
@@ -110,13 +110,12 @@ class _HomePageState extends State<HomePage> {
   Future<void> _disconnectFromDevice() async {
     try {
       if (isConnected && bluetoothConnection.isConnected) {
-        
-        await _sendPWMvalue(0); // ensure send completes
+        await turnBulbOff();
 
         await Future.delayed(Duration(milliseconds: 300)); // allow flush
 
         setState(() {
-          radialPWMvalue = 0;
+          isBulbOn = false;
           isConnected = false;
         });
 
@@ -129,6 +128,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    isBulbOn = false;
     isConnected = false;
     bluetoothConnection.dispose();
     super.dispose();
@@ -146,6 +146,11 @@ class _HomePageState extends State<HomePage> {
     try {
       bluetoothConnection.output.add(Uint8List.fromList(data.codeUnits));
       debugPrint('Sent to MCU: $data');
+      setState(() {
+        if (flag == 0) {
+          flag = 1;
+        }
+      });
     } catch (e) {
       debugPrint('Error sending data: $e');
       ScaffoldMessenger.of(
@@ -167,14 +172,40 @@ class _HomePageState extends State<HomePage> {
         });
   }
 
-  Future<void> _sendPWMvalue(int value) async {
+  Future<void> turnBulbOn() async {
     // fromat: {VALUE}\r\n
-    String sendMsg = "{$value}\r\n";
+    String sendMsg = "value{1}\r\n";
+    setState(() {
+      flag = 0;
+    });
     _sendDataToMCU(sendMsg);
+    setState(() {
+      if (flag == 1) {
+        isBulbOn = true;
+      }
+      flag = 0;
+    });
+  }
+
+  Future<void> turnBulbOff() async {
+    // fromat: {VALUE}\r\n
+    String sendMsg = "value{0}\r\n";
+    setState(() {
+      flag = 0;
+    });
+    _sendDataToMCU(sendMsg);
+    setState(() {
+      if (flag == 1) {
+        isBulbOn = false;
+      }
+      flag = 0;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final Color backgroundColor = Theme.of(context).colorScheme.surface;
+
     return Scaffold(
       appBar: AppBar(title: Text("SMART LIGHT"), centerTitle: true),
       body: isConnected == false
@@ -189,7 +220,9 @@ class _HomePageState extends State<HomePage> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(200),
                       onTap: () {
-                        _requestPermissionsAndConnect();
+                        setState(() {
+                          _requestPermissionsAndConnect();
+                        });
                       },
                       child: Container(
                         padding: EdgeInsets.all(20),
@@ -308,79 +341,69 @@ class _HomePageState extends State<HomePage> {
               child: Column(
                 children: [
                   Text("Connected"),
-                  SizedBox(height: 50),
-                  SfRadialGauge(
-                    axes: <RadialAxis>[
-                      RadialAxis(
-                        minimum: 0,
-                        maximum: 100,
-                        startAngle: 120,
-                        endAngle: 360 + 60,
-                        isInversed: true,
-                        showLabels: false,
-                        labelsPosition: ElementsPosition.inside,
-                        showTicks: false,
-                        radiusFactor: 0.7,
-                        interval: 20,
-                        showFirstLabel: true,
-                        labelFormat: "{value}%",
-                        axisLineStyle: const AxisLineStyle(
-                          cornerStyle: CornerStyle.bothCurve,
-                        ),
-                        pointers: <GaugePointer>[
-                          RangePointer(
-                            value: radialPWMvalue,
-                            cornerStyle: CornerStyle.bothCurve,
-                            width: 20,
-                            sizeUnit: GaugeSizeUnit.logicalPixel,
-                            gradient: SweepGradient(
-                              colors: [
-                                Color(0xFF00C6FF),
-                                Color(0xFF0072FF),
-                                Color(0xFF8E2DE2),
-                              ],
-                              stops: [0.0, 0.5, 1.0],
-                            ),
+                  SizedBox(height: 100),
+
+                  GestureDetector(
+                    onTap: () {
+                      if (isBulbOn) {
+                        turnBulbOff();
+                      } else {
+                        turnBulbOn();
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(30),
+                        color: backgroundColor,
+                        boxShadow: [
+                          BoxShadow(
+                            blurRadius: isBulbOn ? 5.0 : 30.0,
+                            offset: isBulbOn
+                                ? Offset(-10, -10)
+                                : Offset(-28, -28),
+                            color: Colors.white,
                           ),
-                          MarkerPointer(
-                            value: radialPWMvalue,
-                            enableDragging: true,
-                            onValueChanged: (value) {
-                              setState(() {
-                                radialPWMvalue = value;
-                              });
-                            },
-
-                            onValueChangeEnd: (value) async {
-                              await _sendPWMvalue(radialPWMvalue.ceil());
-                            },
-
-                            markerHeight: 30,
-                            markerWidth: 30,
-                            markerType: MarkerType.circle,
-                            borderWidth: 2,
-                            borderColor: Colors.blueAccent,
-                          ),
-                        ],
-
-                        annotations: [
-                          GaugeAnnotation(
-                            angle: 90,
-                            // axisValue: 5,
-                            positionFactor: 0.00,
-                            widget: Text(
-                              "${radialPWMvalue.ceil().toString()}%",
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
+                          BoxShadow(
+                            blurRadius: isBulbOn ? 5.0 : 30.0,
+                            offset: isBulbOn ? Offset(10, 10) : Offset(28, 28),
+                            color: Color(0xFFA7A9AF),
                           ),
                         ],
                       ),
-                    ],
+                      child: SizedBox(
+                        height: 200,
+                        width: 200,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isBulbOn
+                                  ? Icons.lightbulb
+                                  : Icons.lightbulb_outline,
+                              size: 64,
+                              color: isBulbOn ? Colors.amber : Colors.blueGrey,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              isBulbOn ? 'LIGHT ON' : 'LIGHT OFF',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isBulbOn
+                                    ? Colors.amber.shade800
+                                    : Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text('Tap to toggle'),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
+
+                  SizedBox(height: 200),
 
                   Container(
                     width: 220,

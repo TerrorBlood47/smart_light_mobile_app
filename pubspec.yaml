@@ -35,14 +35,14 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flutter_bluetooth_serial: ^0.4.0
-  permission_handler: ^11.0.0
   syncfusion_flutter_gauges:
   flutter_launcher_icons: ^0.14.4
+  permission_handler: ^11.0.0
 
 flutter_icons:
   android: true
   ios: true
-  image_path: "images/app_icon.png"
+  image_path: "images/app_icon_ac.jpeg"
 
 dev_dependencies:
   flutter_test:
